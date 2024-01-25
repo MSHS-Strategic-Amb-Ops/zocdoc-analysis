@@ -1,0 +1,476 @@
+---
+output:
+  html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+<style type="text/css">
+div.main-container {
+  max-width: 2000px;
+  margin-left: 0;
+  margin-right: auto;
+}
+</style>
+
+<style>
+.tocify {
+color: black;
+}
+<!-- } -->
+<!-- .tocify .tocify-header { -->
+<!--     position: fixed; -->
+<!--     <!-- top: 50px; --> -->
+<!--     left: 50px; -->
+<!--     width: 350px; -->
+<!--     <!-- border: solid 3px black; --> -->
+<!--     <!-- height: 200px; --> -->
+<!--  border: none; -->
+<!-- } -->
+.tocify .tocify-header .active {
+color: white;
+background: #d80b8c;
+font-weight: bold;
+}
+<!-- .tocify .tocify-item { -->
+<!-- background: white; -->
+<!-- color: black; -->
+<!--  border: none; -->
+<!-- } -->
+</style>
+
+
+<style>
+  .nav-pills>li>a:hover, .nav-pills>li>a:focus, .nav-pills>li.active>a,     .nav-pills>li.active>a:hover, .nav-pills>li.active>a:focus{
+     background-color: #212070;
+     }
+</style>
+
+<style>
+.container { width: 1800px; }
+h2 {
+  background-color: #dddedd;
+  color: black;
+  text-indent: 20px;
+  <!-- font-weight: bold; -->
+}
+h3 {
+  background-color: #f2f2f2;
+  color: black;
+  text-indent: 20px;
+  <!-- font-weight: bold; -->
+}
+h4 {
+  <!-- background-color: #dddedd; -->
+  <!-- color: black; -->
+  text-indent: 50px;
+  <!-- font-weight: bold; -->
+}
+</style>
+
+<style>
+.blackbox {
+  padding: 1em;
+  background: white;
+  color: black;
+  border: 2px solid #7f7f7f;
+  width: 100%;
+  position: center;
+  align: center;
+  margin: 0px auto;
+}
+.center {
+  text-align: left;
+  margin: 0px auto;
+}
+</style>
+
+
+<!-- ```{css toc-content, echo = FALSE} -->
+<!-- #TOC { -->
+<!--   right: 270px; -->
+<!--   margin: 20px 0px 25px 0px; -->
+<!-- } -->
+
+<!-- .main-container { -->
+<!--     margin-left: 200px; -->
+<!-- } -->
+<!-- ``` -->
+
+
+```{r Load Packages, echo = FALSE, warning = FALSE, message = FALSE}
+# # Load packages -----------------------------------------------------------------------------------
+suppressMessages({
+  memory.limit(size = 8000000)
+  library(readxl)
+  library(writexl)
+  library(plyr)
+  library(dplyr)
+  library(data.table)
+  library(zoo)
+  library(shiny)
+  library(shinydashboard)
+  library(shinydashboardPlus)
+  library(shinyWidgets)
+  library(htmlwidgets)
+  library(lubridate)
+  library(tcltk)
+  library(tidyverse)
+  library(plotly)
+  library(knitr)
+  library(kableExtra)
+  library(leaflet)
+  library(grid)
+  library(gridExtra)
+  library(eeptools)
+  library(ggQC)
+  library(zipcodeR)
+  library(utils)
+  library(scales)
+  library(chron)
+  library(bupaR)
+  library(shiny)
+  library(DT)
+  library(DiagrammeR)
+  library(shinyalert)
+  library(edeaR)
+  library(processmapR)
+  library(processmonitR)
+  library(processanimateR)
+  library(tidyr)
+  library(lubridate)
+  library(RColorBrewer)
+  library(DiagrammeR)
+  library(ggplot2)
+  library(leaflet)
+  library(readr)
+  library(highcharter)
+  library(ggforce) # for 'geom_arc_bar'
+  library(packcircles) # for packed circle graph
+  library(viridis)
+  library(ggiraph)
+  library(treemapify)
+  library(treemap)
+  library(broom)
+  library(extrafont)
+  library(tis) # for US holidays
+  library(vroom)
+  library(sjmisc)
+  library(tools)
+  library(here)
+  library(shinyBS)
+  library(shinyscreenshot)
+  library(fasttime)
+  library(shinycssloaders)
+  library(feather)
+  # library(zipcodeR)
+  library(formattable)
+  library(shinyjs)
+  library(janitor)
+  library(patchwork)
+  library(flexdashboard)
+  # library(tidyverse)
+  # library(viridis)
+  # library(hrbrthemes)
+  # library(plotly)
+  # install.packages("bsts")
+  library(bsts)
+  library(reactable)
+  # install.packages("reactablefmtr")
+  library(reactablefmtr)
+  library(svDialogs)
+  # library(openxlsx)
+  library(flextable)
+  library(officedown)
+  library(officer)
+  library(magrittr)
+  library(webshot) 
+  library(png)
+  library(ggh4x)
+  library(RODBC)
+  library(DBI)
+  library(odbc)
+  library(dbplyr)
+  library(pool)
+  library(emojifont)
+})
+
+```
+
+
+```{r Graph asthetics, echo = FALSE, warning = FALSE, message = FALSE}
+### Color Functions for Graphs ============================================================
+# Mount Sinai corporate colors "USE THIS TO ADD COLORS"
+MountSinai_colors <- c(
+  `dark purple`  = "#212070",
+  `dark pink`    = "#d80b8c",
+  `dark blue`    = "#00aeef",
+  `dark grey`    = "#7f7f7f",
+  `yellow`       = "#ffc000",
+  `purple`       = "#7030a0",
+  `med purple`   = "#5753d0",
+  `med pink`     = "#f75dbe",
+  `med blue`     = "#5cd3ff",
+  `med grey`     = "#a5a7a5",
+  `light purple` = "#c7c6ef",
+  `light pink`   = "#fcc9e9",
+  `light blue`   = "#c9f0ff",
+  `light grey`   = "#dddedd"
+  )
+# Function to extract Mount Sinai colors as hex codes
+# Use Character names of MountSinai_colors
+MountSinai_cols <- function(...) {
+  cols <- c(...)
+  
+  if (is.null(cols))
+    return (MountSinai_colors)
+  
+  MountSinai_colors[cols]
+}
+# Color Function that can be used to call all colors is "MountSinai_cols()"
+# Use in ggplot 
+  #MountSinai_cols()       # will provide all colors and their hex codes in a table 
+  #MountSinai_cols("pink") # will provide color name and the hex code for the pink color
+# Create palettes 
+MountSinai_palettes <- list(
+  `all`   = MountSinai_cols("dark purple","dark pink","dark blue","dark grey",
+                            "med purple","med pink","med blue","med grey", 
+                            "light purple","light pink","light blue","light grey"),
+  
+  `main`  = MountSinai_cols("dark purple","dark pink","dark blue","dark grey"),
+  
+  `purple`  = MountSinai_cols("dark purple","med purple","light purple"),
+  
+  `pink`  = MountSinai_cols("dark pink","med pink","light pink"),
+  
+  `blue`  = MountSinai_cols("dark blue", "med blue", "light blue"),
+  
+  `grey`  = MountSinai_cols("dark grey", "med grey", "light grey"),
+  
+  `purpleGrey` = MountSinai_cols("dark purple", "dark grey"),
+  
+  `pinkBlue` = MountSinai_cols("dark pink", "dark blue")
+  
+)
+# MountSinai_palettes
+# Return function to interpolate a Mount Sinai color palette
+# default value is the main palette, reverse = True will change the order
+MountSinai_pal <- function(palette = "all", reverse = FALSE, ...) {
+  pal <- MountSinai_palettes[[palette]]
+  
+  if (reverse) pal <- rev(pal)
+  
+  colorRampPalette(pal, ...)
+}
+# Scale Function for ggplot can be used instead of scale_color_manual
+scale_color_MountSinai <- function(palette = "all", discrete = TRUE, reverse = FALSE, ...) {
+  pal <- MountSinai_pal(palette = palette, reverse = reverse)
+  
+  if (discrete) {
+    discrete_scale("colour", paste0("MountSinai_", palette), palette = pal, ...)
+  } else {
+    scale_color_gradientn(colours = pal(256), ...)
+  }
+}
+# Scale Fill for ggplot insetead of scale_fill_manual 
+scale_fill_MountSinai <- function(palette = "all", discrete = TRUE, reverse = FALSE, ...) {
+  pal <- MountSinai_pal(palette = palette, reverse = reverse)
+  if (discrete) {
+    discrete_scale("fill", paste0("MountSinai_", palette), palette = pal, ...)
+  } else {
+    scale_fill_gradientn(colours = pal(256), ...)
+  }
+}
+# Use in ggplot 
+  # scale_color_MountSinai("main")
+```
+
+
+```{r Data Filtering, echo = FALSE, warning = FALSE, message = FALSE}
+
+# Filter New Patient Entry Processed Data -----------
+data <- new_patient_data %>%
+  dplyr::select(MRN, PAT_ENC_CSN_ID, 
+                SITE, DEPARTMENT_NAME, DEPT_SPECIALTY_NAME,
+                APPT_DTTM, APPT_MADE_DTTM, DERIVED_STATUS_DESC, SCHED_METHOD, APPT_ENTRY_USER_NAME_WID,
+                new_patient, unique_pt_ID, visit_ID, first_entry_visit,
+                new_patient_scheduling, unique_pt_ID_scheduling, scheduling_ID, first_entry_scheduling) %>%
+  collect()
+
+
+# Scheduling Method  ------------------
+# data <- data %>%
+#   mutate(sched_method_new = case_when(str_detect(SCHED_METHOD, "FastPass") ~ "FASTPASS",
+#                                       str_detect(SCHED_METHOD, "On My Way") ~ "OnMyWay",
+#                                       str_detect(SCHED_METHOD, "Epic Open Scheduling") ~ "Findadoc",
+#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "FINDADOC") ~ "Findadoc",
+#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "AVAAMO") ~ "Avaamo",
+#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "STAYWELL") ~ "Consumer Digital",
+#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ASAP") ~ "DocASAP",
+#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "KYRUUS") ~ "Google",
+#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "API, OSCAR") ~ "Oscar",
+#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ZOCDOC") ~ "ZocDoc",
+#                                       TRUE ~ NA))
+# data <- data %>%
+#   mutate(sched_method_new = case_when(is.na(sched_method_new) & str_detect(APPT_ENTRY_USER_NAME_WID, "MYCHART") ~ "MyMS",
+#                                       is.na(sched_method_new) ~ "Entry Person",
+#                                       TRUE ~ sched_method_new))
+
+data <- data %>%
+  mutate(sched_method_new = case_when(str_detect(APPT_ENTRY_USER_NAME_WID, "MYCHART") ~ "MyMS/FASTPASS",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "AVAAMO") ~ "Avaamo",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "STAYWELL") ~ "Consumer Digital",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ASAP") ~ "DocASAP",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "KYRUUS") ~ "Google",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "API, OSCAR") ~ "Oscar",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ZOCDOC") ~ "ZocDoc",
+                                       TRUE ~ "Entry Person"))
+
+
+
+# ZocDoc vs. Other Entry ----------------
+data <- data %>%
+  mutate(first_entry_visit_new = case_when(str_detect(first_entry_visit, "MYCHART") ~ "MyMS/FASTPASS",
+                                       str_detect(first_entry_visit, "AVAAMO") ~ "Avaamo",
+                                       str_detect(first_entry_visit, "STAYWELL") ~ "Consumer Digital",
+                                       str_detect(first_entry_visit, "ASAP") ~ "DocASAP",
+                                       str_detect(first_entry_visit, "KYRUUS") ~ "Google",
+                                       str_detect(first_entry_visit, "API, OSCAR") ~ "Oscar",
+                                       str_detect(first_entry_visit, "ZOCDOC") ~ "ZocDoc",
+                                       TRUE ~ "Entry Person"))
+
+data <- data %>%
+  mutate(first_entry_scheduling_new = case_when(str_detect(first_entry_scheduling, "MYCHART") ~ "MyMS/FASTPASS",
+                                       str_detect(first_entry_scheduling, "AVAAMO") ~ "Avaamo",
+                                       str_detect(first_entry_scheduling, "STAYWELL") ~ "Consumer Digital",
+                                       str_detect(first_entry_scheduling, "ASAP") ~ "DocASAP",
+                                       str_detect(first_entry_scheduling, "KYRUUS") ~ "Google",
+                                       str_detect(first_entry_scheduling, "API, OSCAR") ~ "Oscar",
+                                       str_detect(first_entry_scheduling, "ZOCDOC") ~ "ZocDoc",
+                                       TRUE ~ "Entry Person"))
+
+
+# saveRDS(data, "new_pt_data_01242024.rds")
+```
+
+
+```{r}
+
+# What is total scheduling instances on ZocDoc vs. Actualized Appts 
+# Total ZocDoc spending vs. new patient acquired 
+# Net new patients subsquent visit scheduling activities 
+
+data <- readRDS("new_pt_data_01242024.rds")
+
+data <- data %>% 
+  mutate(specialty = case_when(DEPT_SPECIALTY_NAME %in% c("Family Medicine", "Internal Medicine") ~ "Primary Care",
+                               DEPT_SPECIALTY_NAME %in% c("OB/Gyn", "Obstetrics", "Gynecology") ~ "Ob/Gyn",
+                               str_detect(DEPT_SPECIALTY_NAME, "Peds|Pediatric") ~ "Pediatrics",
+                               TRUE ~ DEPT_SPECIALTY_NAME))
+
+data <- data %>%
+  mutate(Appt.MonthYear = format(as.Date(APPT_DTTM), "%Y-%m"),
+         Appt.Year = format(as.Date(APPT_DTTM), "%Y")) %>%
+  group_by(unique_pt_ID) %>%
+  mutate(first_visit_year = Appt.Year[new_patient == 1],
+         first_visit_monthyear = Appt.MonthYear[new_patient == 1],
+         first_visit_site = SITE[new_patient == 1],
+         first_visit_specialty = specialty[new_patient == 1]) 
+
+
+```
+
+
+```{r Net New Patients and Entry Points}
+
+# Net new patients & unique MRNs ------------------------
+net_new_pts <- data %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+  group_by(Appt.Year) %>%
+  summarise(total_pts = length(unique(MRN)),
+            net_new_pts = sum(new_patient))
+
+net_new_pts_site <- data %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+  group_by(Appt.Year, SITE) %>%
+  summarise(total_pts = length(unique(MRN)),
+            net_new_pts = sum(new_patient))
+
+net_new_pts_specialty <- data %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+  group_by(Appt.Year, specialty) %>%
+  summarise(total_pts = length(unique(MRN)),
+            net_new_pts = sum(new_patient))
+
+
+# Net new patient entry point breakdown --------------------
+net_new_pts_entry <- data %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+  group_by(Appt.Year, SITE, specialty, first_entry_visit_new) %>%
+  summarise(net_new_pts = sum(new_patient)) 
+
+
+# Stickiness -----------------------------------------------
+net_new_pts_stick <- data %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+  group_by(first_visit_year, first_visit_site, first_visit_specialty, visit_ID) %>%
+  summarise()
+  
+  summarise(total_visits = n()) %>%
+  group_by(first_visit_year, total_visits) %>%
+  summarise(net_new_pts = n())
+
+
+# Subsequent visits ---------------------------------------- 
+net_new_pts_subsequent_visit <- data %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+  group_by(first_visit_year, first_visit_site, first_visit_specialty, first_entry_visit_new, sched_method_new) %>%
+  summarise(net_new_pts = sum(new_patient),
+            subsequent_visits = length(unique(PAT_ENC_CSN_ID[visit_ID > 1])),
+            subsequent_unique_pts = length(unique(MRN[visit_ID > 1])))
+
+
+```
+
+
+```{r Write Table to Oracle, echo = FALSE, warning = FALSE, message = FALSE}
+
+#Establish Oracle Cloud connection
+conn3 <- dbConnect(odbc(), "OAO Cloud DB SoYoun",
+                  uid = "KWEONS01",
+                  pwd = "wEKMQpqm22*dvM")
+ 
+
+
+new_patients <- tbl(conn3, "NEW_PATIENTS")
+new_patients_pull_all <- new_patients %>%
+  collect()
+
+new_patients_pull_all <- new_patients_pull_all %>%
+  distinct()
+
+data_remaining <- anti_join(data, new_patients_pull_all)
+
+
+batch_size <- 1000
+ 
+index_squence <- seq(1, nrow(data_remaining), by = batch_size)
+ 
+for (i in index_squence) {
+  if(i == max(index_squence)) {
+    batch <- data_remaining[i:nrow(data_remaining), ]
+  } else {
+    batch <- data_remaining[i:(i + batch_size - 1), ]
+  }
+
+  dbWriteTable(conn = conn3, name = "NEW_PATIENTS", value = batch, row.names = FALSE, append = TRUE)
+  
+  print(paste0("i is:", i))
+  # print(batch)
+}
+
+```
+
+
