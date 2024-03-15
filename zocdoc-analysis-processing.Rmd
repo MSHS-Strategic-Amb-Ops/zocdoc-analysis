@@ -99,7 +99,7 @@ h4 {
 ```{r Load Packages, echo = FALSE, warning = FALSE, message = FALSE}
 # # Load packages -----------------------------------------------------------------------------------
 suppressMessages({
-  memory.limit(size = 8000000)
+  memory.limit(size = 100000000)
   library(readxl)
   library(writexl)
   library(plyr)
@@ -303,25 +303,11 @@ access_raw_tbl <- tbl(conn1, "MV_DM_PATIENT_ACCESS")
 
 # Analysis based on arrived visits only ---------------------------------------
 new_patient_arrived <- access_raw_tbl %>%
-  # filter(MRN %in% c("15151", "H235951")) %>%
-  # mutate(sched_method_new = ifelse("FastPass" %like% "FASTPASS",
-  #                                  ifelse(SCHED_METHOD %like% "On My Way", "OnMyWay",
-  #                                         ifelse(SCHED_METHOD %like% "Epic Open Scheduling", "Findadoc",
-  #                                                ifelse(APPT_ENTRY_USER_NAME_WID %like% "FINDADOC", "Findadoc",
-  #                                                       ifelse(APPT_ENTRY_USER_NAME_WID %like% "AVAAMO", "Avaamo",
-  #                                                              ifelse(APPT_ENTRY_USER_NAME_WID %like% "STAYWELL", "Consumer Digital",
-  #                                                                     ifelse(APPT_ENTRY_USER_NAME_WID %like% "ASAP", "DocASAP",
-  #                                                                            ifelse(APPT_ENTRY_USER_NAME_WID %like% "KYRUUS", "Google",
-  #                                                                                   ifelse(APPT_ENTRY_USER_NAME_WID %like% "API, OSCAR", "Oscar",
-  #                                                                                          ifelse(APPT_ENTRY_USER_NAME_WID %like% "ZOCDOC", "ZocDoc", NA))))))))))) %>%
-  # collect()
-  # mutate(sched_method_new = ifelse(is.na(sched_method_new) & APPT_ENTRY_USER_NAME_WID %like% "MYCHART", "MyMS",
-  #                                  ifelse(is.na(sched_method_new), "Entry Person", sched_method_new))) %>%
   left_join(
     (access_raw_tbl %>%
        # filter(MRN %in% c("15151", "H235951")) %>%
        filter(DERIVED_STATUS_DESC == "Arrived") %>%
-       arrange(MRN, APPT_DTTM) %>%
+       arrange(MRN, APPT_DTTM, APPT_MADE_DTTM) %>%
        group_by(MRN) %>%
        mutate(first_new_visit = row_number()) %>%
        mutate(second_new_visit = APPT_DTTM - lag(APPT_DTTM)) %>%
@@ -338,9 +324,7 @@ new_patient_arrived <- access_raw_tbl %>%
 # Analysis based on scheduling activities -------------------------------------
 # Combined with analysis based on arrived visits only
 new_patient_data <- new_patient_arrived %>%
-  # dplyr::select(MRN, PAT_ENC_CSN_ID, APPT_DTTM, CONTACT_DATE,
-  #               APPT_MADE_DTTM, DERIVED_STATUS_DESC,  SCHED_METHOD, APPT_ENTRY_USER_NAME_WID, new_patient, unique_pt_ID, visit_ID) %>%
-  arrange(MRN, APPT_DTTM) %>%
+  arrange(MRN, APPT_DTTM, APPT_MADE_DTTM) %>%
   group_by(unique_pt_ID) %>%
   mutate(first_entry_visit = first(APPT_ENTRY_USER_NAME_WID)) %>% # Identify first entry point
   group_by(MRN) %>%
@@ -354,80 +338,142 @@ new_patient_data <- new_patient_arrived %>%
   mutate(scheduling_ID = row_number()) %>%
   group_by(unique_pt_ID_scheduling) %>%
   mutate(first_entry_scheduling = first(APPT_ENTRY_USER_NAME_WID)) %>% # Identify first entry point for scheduling
-  ungroup() 
-  # dplyr::select(MRN, PAT_ENC_CSN_ID, APPT_DTTM, APPT_MADE_DTTM, DERIVED_STATUS_DESC, SCHED_METHOD, APPT_ENTRY_USER_NAME_WID, 
-  #               new_patient, unique_pt_ID, visit_ID, first_entry_visit,
-  #               new_patient_scheduling, unique_pt_ID_scheduling, scheduling_ID, first_entry_scheduling,
-  #               SITE,  DEPT_SPECIALTY_NAME, DEPARTMENT_NAME) 
+  ungroup() %>%
+  mutate(Appt.Status = case_when(SAME_DAY_CANC_YN == "Y" & DERIVED_STATUS_DESC %in% c("Canceled","Rescheduled","Bumped") ~ paste0("SameDay ",DERIVED_STATUS_DESC),
+                                 TRUE ~ DERIVED_STATUS_DESC))
 
 ```
 
 
-```{r Data Collect, echo = FALSE, warning = FALSE, message = FALSE}
+```{r Data Filtering, echo = FALSE, warning = FALSE, message = FALSE}
 
+# Filter New Patient Entry Processed Data -----------
 data <- new_patient_data %>%
-  # mutate(year = year(CONTACT_DATE)) %>%
-  # filter(year >= 2022) %>%
-  dplyr::select(MRN, PAT_ENC_CSN_ID, APPT_DTTM, APPT_MADE_DTTM, DERIVED_STATUS_DESC, SCHED_METHOD, APPT_ENTRY_USER_NAME_WID, 
+  dplyr::select(MRN, PAT_ENC_CSN_ID, 
+                SITE, DEPARTMENT_NAME, DEPT_SPECIALTY_NAME,
+                APPT_DTTM, APPT_MADE_DTTM, APPT_CANCEL_DATE, DERIVED_STATUS_DESC, Appt.Status, SCHED_METHOD, APPT_ENTRY_USER_NAME_WID,
+                PROV_ID, PROV_NAME_WID,
                 new_patient, unique_pt_ID, visit_ID, first_entry_visit,
                 new_patient_scheduling, unique_pt_ID_scheduling, scheduling_ID, first_entry_scheduling) %>%
   collect()
 
+invisible(gc())
+
+# Scheduling Method  ------------------
+data <- data %>%
+  mutate(sched_method_new = case_when(str_detect(APPT_ENTRY_USER_NAME_WID, "MYCHART") ~ "MyMS/FASTPASS",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "AVAAMO") ~ "Avaamo",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "STAYWELL") ~ "Consumer Digital",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ASAP") ~ "DocASAP",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "KYRUUS") ~ "Google",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "API, OSCAR") ~ "Oscar",
+                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ZOCDOC") ~ "ZocDoc",
+                                       TRUE ~ "Entry Person"))
 
 
-# data_2022 <- new_patient_data %>%
-#   mutate(year = year(CONTACT_DATE)) %>%
-#   filter(year >= 2022) %>%
-#   dplyr::select(PAT_ENC_CSN_ID, 
-#                 new_patient, unique_pt_ID, visit_ID, first_entry_visit,
-#                 new_patient_scheduling, unique_pt_ID_scheduling, scheduling_ID, first_entry_scheduling) %>%
-#   collect()
-#   
+
+# ZocDoc vs. Other Entry ----------------
+data <- data %>%
+  mutate(first_entry_visit_new = case_when(str_detect(first_entry_visit, "MYCHART") ~ "MyMS/FASTPASS",
+                                       str_detect(first_entry_visit, "AVAAMO") ~ "Avaamo",
+                                       str_detect(first_entry_visit, "STAYWELL") ~ "Consumer Digital",
+                                       str_detect(first_entry_visit, "ASAP") ~ "DocASAP",
+                                       str_detect(first_entry_visit, "KYRUUS") ~ "Google",
+                                       str_detect(first_entry_visit, "API, OSCAR") ~ "Oscar",
+                                       str_detect(first_entry_visit, "ZOCDOC") ~ "ZocDoc",
+                                       TRUE ~ "Entry Person"))
+
+data <- data %>%
+  mutate(first_entry_scheduling_new = case_when(str_detect(first_entry_scheduling, "MYCHART") ~ "MyMS/FASTPASS",
+                                       str_detect(first_entry_scheduling, "AVAAMO") ~ "Avaamo",
+                                       str_detect(first_entry_scheduling, "STAYWELL") ~ "Consumer Digital",
+                                       str_detect(first_entry_scheduling, "ASAP") ~ "DocASAP",
+                                       str_detect(first_entry_scheduling, "KYRUUS") ~ "Google",
+                                       str_detect(first_entry_scheduling, "API, OSCAR") ~ "Oscar",
+                                       str_detect(first_entry_scheduling, "ZOCDOC") ~ "ZocDoc",
+                                       TRUE ~ "Entry Person"))
 
 
+data <- data %>% 
+  mutate(specialty = case_when(DEPT_SPECIALTY_NAME %in% c("Family Medicine", "Internal Medicine") ~ "Primary Care",
+                               DEPT_SPECIALTY_NAME %in% c("OB/Gyn", "Obstetrics", "Gynecology") ~ "Ob/Gyn",
+                               str_detect(DEPT_SPECIALTY_NAME, "Peds|Pediatric") ~ "Pediatrics",
+                               TRUE ~ DEPT_SPECIALTY_NAME))
 
 
-# 
-# require(openxlx)
-# write_xlsx(test, "Zocdoc data processing sample.xlsx")
-  
+data <- data %>%
+  mutate(Appt.MonthYear = format(as.Date(APPT_DTTM), "%Y-%m"),
+         Appt.Year = format(as.Date(APPT_DTTM), "%Y"),
+         Appt.Made.MonthYear = format(as.Date(APPT_MADE_DTTM), "%Y-%m"),
+         Appt.Made.Year = format(as.Date(APPT_MADE_DTTM), "%Y")) %>%
+  group_by(unique_pt_ID) %>%
+  mutate(first_visit_year = Appt.Year[new_patient == 1],
+         first_visit_monthyear = Appt.MonthYear[new_patient == 1],
+         first_visit_site = SITE[new_patient == 1],
+         first_visit_specialty = specialty[new_patient == 1]) 
+
+
+data <- data %>%
+  mutate(Appt.Status = case_when(SAME_DAY_CANC_YN == "Y" & DERIVED_STATUS_DESC %in% c("Canceled","Rescheduled","Bumped") ~ paste0("SameDay ",DERIVED_STATUS_DESC),
+                                 TRUE ~ DERIVED_STATUS_DESC))
+
 ```
 
 
-```{r Write Table to Oracle, echo = FALSE, warning = FALSE, message = FALSE}
+```{r}
+# 
+# invisible(gc())
+# 
+saveRDS(data, "new_pt_data_01242024.rds")
 
-# #Establish Oracle Cloud connection
-# conn3 <- dbConnect(odbc(), "OAO Cloud DB SoYoun",
-#                   uid = "KWEONS01",
-#                   pwd = "wEKMQpqm22*dvM")
-#  
-# 
-# 
-# new_patients <- tbl(conn3, "NEW_PATIENTS")
-# new_patients_pull_all <- new_patients %>%
-#   collect()
-# 
-# new_patients_pull_all <- new_patients_pull_all %>%
-#   distinct()
-# 
-# data_remaining <- anti_join(data, new_patients_pull_all)
-# 
-# 
-# batch_size <- 1000
-#  
-# index_squence <- seq(1, nrow(data_remaining), by = batch_size)
-#  
-# for (i in index_squence) {
-#   if(i == max(index_squence)) {
-#     batch <- data_remaining[i:nrow(data_remaining), ]
-#   } else {
-#     batch <- data_remaining[i:(i + batch_size - 1), ]
-#   }
-# 
-#   dbWriteTable(conn = conn3, name = "NEW_PATIENTS", value = batch, row.names = FALSE, append = TRUE)
-#   
-#   print(paste0("i is:", i))
-#   # print(batch)
-# }
+data <- readRDS("new_pt_data_01242024.rds")
+
+data <- data %>%
+  mutate(Appt.MonthYear = format(as.Date(APPT_DTTM), "%Y-%m"))
+
+new_2022 <- data %>%
+  filter(first_visit_year == 2022) %>%
+  filter(new_patient == 1) %>%
+  dplyr::select(PAT_ENC_CSN_ID, MRN, SITE, DEPARTMENT_NAME, APPT_DTTM, PROV_NAME_WID, sched_method_new)
+
+require(openxlsx)
+write.xlsx(new_2022, "MSHS Net New Patients_2022.xlsx")
+```
+
+
+```{r Provider Digital Status and Capacity, echo = FALSE, warning = FALSE, message = FALSE}
+
+invisible(gc())
+
+provider_digital_enabled <- data %>%
+  group_by(PROV_NAME_WID, PROV_ID, DEPARTMENT_NAME) %>%
+  summarise(first_ZocDoc = as.Date(min(APPT_DTTM[Appt.Status == "Arrived" & sched_method_new == "ZocDoc"])),
+            last_ZocDoc = as.Date(max(APPT_DTTM[Appt.Status == "Arrived" & sched_method_new == "ZocDoc"])),
+            first_findadoc =  as.Date(min(APPT_DTTM[Appt.Status == "Arrived" &  APPT_ENTRY_USER_NAME_WID == "APP, FINDADOC [MSHSFAD]"])),
+            last_findadoc =  as.Date(max(APPT_DTTM[Appt.Status == "Arrived" &  APPT_ENTRY_USER_NAME_WID == "APP, FINDADOC [MSHSFAD]"])))
+
+provider_digital_enabled <- provider_digital_enabled %>%
+  mutate(ZocDoc_enabled = ifelse(is.infinite(first_ZocDoc), "N", "Y"),
+         findadoc_enabled = ifelse(is.infinite(first_findadoc), "N", "Y"))
+
+
+provider_data <- data %>%
+  group_by(PROV_NAME_WID, PROV_ID, VISIT_PROV_STAFF_RESOURCE_C, SITE, specialty, DEPARTMENT_NAME, 
+           Appt.Made.Year, Appt.Made.MonthYear, Appt.Year, Appt.MonthYear, sched_method_new, Appt.Status, VISIT_GROUP_NUM) %>%
+  summarise(total = n(),
+            net_new_pts = sum(new_patient))
+
+provider_data <- left_join(provider_data, provider_digital_enabled)
+
+provider_data <- provider_data %>%
+  mutate(enable_status = case_when(ZocDoc_enabled == "Y" & findadoc_enabled == "Y" ~ "Both Enabled",
+                                   ZocDoc_enabled == "Y" & findadoc_enabled == "N" ~ "ZocDoc Enabled",
+                                   ZocDoc_enabled == "N" & findadoc_enabled == "Y" ~ "FindaDoc Enabled",
+                                   TRUE ~ "Not Enabled"))
+
+enabled_status <- provider_data %>%
+  group_by(Appt.MonthYear = sum)
+
 
 ```
+

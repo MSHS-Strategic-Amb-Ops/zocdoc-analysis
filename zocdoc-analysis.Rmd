@@ -288,102 +288,8 @@ scale_fill_MountSinai <- function(palette = "all", discrete = TRUE, reverse = FA
 ```
 
 
-```{r Data Filtering, echo = FALSE, warning = FALSE, message = FALSE}
 
-# Filter New Patient Entry Processed Data -----------
-data <- new_patient_data %>%
-  dplyr::select(MRN, PAT_ENC_CSN_ID, 
-                SITE, DEPARTMENT_NAME, DEPT_SPECIALTY_NAME,
-                APPT_DTTM, APPT_MADE_DTTM, DERIVED_STATUS_DESC, SCHED_METHOD, APPT_ENTRY_USER_NAME_WID,
-                new_patient, unique_pt_ID, visit_ID, first_entry_visit,
-                new_patient_scheduling, unique_pt_ID_scheduling, scheduling_ID, first_entry_scheduling) %>%
-  collect()
-
-
-# Scheduling Method  ------------------
-# data <- data %>%
-#   mutate(sched_method_new = case_when(str_detect(SCHED_METHOD, "FastPass") ~ "FASTPASS",
-#                                       str_detect(SCHED_METHOD, "On My Way") ~ "OnMyWay",
-#                                       str_detect(SCHED_METHOD, "Epic Open Scheduling") ~ "Findadoc",
-#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "FINDADOC") ~ "Findadoc",
-#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "AVAAMO") ~ "Avaamo",
-#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "STAYWELL") ~ "Consumer Digital",
-#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ASAP") ~ "DocASAP",
-#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "KYRUUS") ~ "Google",
-#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "API, OSCAR") ~ "Oscar",
-#                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ZOCDOC") ~ "ZocDoc",
-#                                       TRUE ~ NA))
-# data <- data %>%
-#   mutate(sched_method_new = case_when(is.na(sched_method_new) & str_detect(APPT_ENTRY_USER_NAME_WID, "MYCHART") ~ "MyMS",
-#                                       is.na(sched_method_new) ~ "Entry Person",
-#                                       TRUE ~ sched_method_new))
-
-data <- data %>%
-  mutate(sched_method_new = case_when(str_detect(APPT_ENTRY_USER_NAME_WID, "MYCHART") ~ "MyMS/FASTPASS",
-                                       str_detect(APPT_ENTRY_USER_NAME_WID, "AVAAMO") ~ "Avaamo",
-                                       str_detect(APPT_ENTRY_USER_NAME_WID, "STAYWELL") ~ "Consumer Digital",
-                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ASAP") ~ "DocASAP",
-                                       str_detect(APPT_ENTRY_USER_NAME_WID, "KYRUUS") ~ "Google",
-                                       str_detect(APPT_ENTRY_USER_NAME_WID, "API, OSCAR") ~ "Oscar",
-                                       str_detect(APPT_ENTRY_USER_NAME_WID, "ZOCDOC") ~ "ZocDoc",
-                                       TRUE ~ "Entry Person"))
-
-
-
-# ZocDoc vs. Other Entry ----------------
-data <- data %>%
-  mutate(first_entry_visit_new = case_when(str_detect(first_entry_visit, "MYCHART") ~ "MyMS/FASTPASS",
-                                       str_detect(first_entry_visit, "AVAAMO") ~ "Avaamo",
-                                       str_detect(first_entry_visit, "STAYWELL") ~ "Consumer Digital",
-                                       str_detect(first_entry_visit, "ASAP") ~ "DocASAP",
-                                       str_detect(first_entry_visit, "KYRUUS") ~ "Google",
-                                       str_detect(first_entry_visit, "API, OSCAR") ~ "Oscar",
-                                       str_detect(first_entry_visit, "ZOCDOC") ~ "ZocDoc",
-                                       TRUE ~ "Entry Person"))
-
-data <- data %>%
-  mutate(first_entry_scheduling_new = case_when(str_detect(first_entry_scheduling, "MYCHART") ~ "MyMS/FASTPASS",
-                                       str_detect(first_entry_scheduling, "AVAAMO") ~ "Avaamo",
-                                       str_detect(first_entry_scheduling, "STAYWELL") ~ "Consumer Digital",
-                                       str_detect(first_entry_scheduling, "ASAP") ~ "DocASAP",
-                                       str_detect(first_entry_scheduling, "KYRUUS") ~ "Google",
-                                       str_detect(first_entry_scheduling, "API, OSCAR") ~ "Oscar",
-                                       str_detect(first_entry_scheduling, "ZOCDOC") ~ "ZocDoc",
-                                       TRUE ~ "Entry Person"))
-
-
-# saveRDS(data, "new_pt_data_01242024.rds")
-```
-
-
-```{r}
-
-# What is total scheduling instances on ZocDoc vs. Actualized Appts 
-# Total ZocDoc spending vs. new patient acquired 
-# Net new patients subsquent visit scheduling activities 
-
-data <- readRDS("new_pt_data_01242024.rds")
-
-data <- data %>% 
-  mutate(specialty = case_when(DEPT_SPECIALTY_NAME %in% c("Family Medicine", "Internal Medicine") ~ "Primary Care",
-                               DEPT_SPECIALTY_NAME %in% c("OB/Gyn", "Obstetrics", "Gynecology") ~ "Ob/Gyn",
-                               str_detect(DEPT_SPECIALTY_NAME, "Peds|Pediatric") ~ "Pediatrics",
-                               TRUE ~ DEPT_SPECIALTY_NAME))
-
-data <- data %>%
-  mutate(Appt.MonthYear = format(as.Date(APPT_DTTM), "%Y-%m"),
-         Appt.Year = format(as.Date(APPT_DTTM), "%Y")) %>%
-  group_by(unique_pt_ID) %>%
-  mutate(first_visit_year = Appt.Year[new_patient == 1],
-         first_visit_monthyear = Appt.MonthYear[new_patient == 1],
-         first_visit_site = SITE[new_patient == 1],
-         first_visit_specialty = specialty[new_patient == 1]) 
-
-
-```
-
-
-```{r Net New Patients and Entry Points}
+```{r Arrived Net New Patients and Entry Points, echo = FALSE, warning = FALSE, message = FALSE}
 
 # Net new patients & unique MRNs ------------------------
 net_new_pts <- data %>%
@@ -392,17 +298,26 @@ net_new_pts <- data %>%
   summarise(total_pts = length(unique(MRN)),
             net_new_pts = sum(new_patient))
 
+
 net_new_pts_site <- data %>%
   filter(DERIVED_STATUS_DESC == "Arrived") %>%
   group_by(Appt.Year, SITE) %>%
   summarise(total_pts = length(unique(MRN)),
             net_new_pts = sum(new_patient))
 
+
 net_new_pts_specialty <- data %>%
   filter(DERIVED_STATUS_DESC == "Arrived") %>%
   group_by(Appt.Year, specialty) %>%
   summarise(total_pts = length(unique(MRN)),
             net_new_pts = sum(new_patient))
+
+
+# Net new patient count by site and specialty
+net_new_pts_site_specialty <- data %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+  group_by(Appt.Year, first_visit_site, first_visit_specialty) %>%
+  summarise(net_new_pts = sum(new_patient))
 
 
 # Net new patient entry point breakdown --------------------
@@ -415,12 +330,9 @@ net_new_pts_entry <- data %>%
 # Stickiness -----------------------------------------------
 net_new_pts_stick <- data %>%
   filter(DERIVED_STATUS_DESC == "Arrived") %>%
-  group_by(first_visit_year, first_visit_site, first_visit_specialty, visit_ID) %>%
-  summarise()
+  group_by(first_visit_year, first_visit_site, first_visit_specialty, first_entry_visit_new, visit_ID) %>%
+  summarise(net_new_pts = length(unique(unique_pt_ID)))
   
-  summarise(total_visits = n()) %>%
-  group_by(first_visit_year, total_visits) %>%
-  summarise(net_new_pts = n())
 
 
 # Subsequent visits ---------------------------------------- 
@@ -432,45 +344,71 @@ net_new_pts_subsequent_visit <- data %>%
             subsequent_unique_pts = length(unique(MRN[visit_ID > 1])))
 
 
+net_new_pts_subsequent_visit_visit_ID <- data %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+  group_by(first_visit_year, first_visit_site, first_visit_specialty, first_entry_visit_new, sched_method_new, visit_ID) %>%
+  summarise(net_new_pts = sum(new_patient),
+            subsequent_visits = length(unique(PAT_ENC_CSN_ID[visit_ID > 1])),
+            subsequent_unique_pts = length(unique(MRN[visit_ID > 1])))
+
+
+
+
 ```
 
 
-```{r Write Table to Oracle, echo = FALSE, warning = FALSE, message = FALSE}
 
-#Establish Oracle Cloud connection
-conn3 <- dbConnect(odbc(), "OAO Cloud DB SoYoun",
-                  uid = "KWEONS01",
-                  pwd = "wEKMQpqm22*dvM")
- 
+```{r}
 
-
-new_patients <- tbl(conn3, "NEW_PATIENTS")
-new_patients_pull_all <- new_patients %>%
-  collect()
-
-new_patients_pull_all <- new_patients_pull_all %>%
-  distinct()
-
-data_remaining <- anti_join(data, new_patients_pull_all)
+net_new_pts_subsequent_visit <- data %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+  group_by(first_visit_year, first_visit_site, first_visit_specialty, first_entry_visit_new, SITE, specialty) %>%
+  summarise(net_new_pts = sum(new_patient),
+            subsequent_visits = length(unique(PAT_ENC_CSN_ID[visit_ID > 1])),
+            subsequent_unique_pts = length(unique(MRN[visit_ID > 1])))
 
 
-batch_size <- 1000
- 
-index_squence <- seq(1, nrow(data_remaining), by = batch_size)
- 
-for (i in index_squence) {
-  if(i == max(index_squence)) {
-    batch <- data_remaining[i:nrow(data_remaining), ]
-  } else {
-    batch <- data_remaining[i:(i + batch_size - 1), ]
-  }
+subsequent_visit_specialty <- net_new_pts_subsequent_visit %>% filter(first_visit_year == 2022) %>% group_by(first_visit_specialty, specialty) %>% summarise(total_subsequent = sum(subsequent_visits)) %>%
+  group_by(first_visit_specialty) %>%
+  mutate(perc = round(total_subsequent/sum(total_subsequent),2))
 
-  dbWriteTable(conn = conn3, name = "NEW_PATIENTS", value = batch, row.names = FALSE, append = TRUE)
-  
-  print(paste0("i is:", i))
-  # print(batch)
-}
 
+```
+
+
+```{r}
+
+bookings <- data %>%
+  group_by(Appt.Year, sched_method_new) %>%
+  # group_by(Appt.Year, SITE, specialty, sched_method_new, DERIVED_STATUS_DESC) %>%
+  summarise(total_scheduling = n(),
+            net_new_pts = sum(new_patient))
+
+zocdoc_bookings <- data %>% 
+  ungroup() %>%
+  filter(Appt.Year, sched_method_new) %>%
+  summarise(total = n())
+
+```
+
+
+
+```{r Export Data, echo = FALSE, warning = FALSE, message = FALSE}
+
+
+data_list <- list("net_new_pts" = net_new_pts,
+                  "net_new_pts_site" = net_new_pts_site,
+                  "net_new_pts_specialty" = net_new_pts_specialty,
+                  "net_new_pts_site_specialty" = net_new_pts_site_specialty,
+                  "net_new_pts_entry" = net_new_pts_entry,
+                  "net_new_pts_stick" = net_new_pts_stick,
+                  "net_new_pts_subsequent_visit" = net_new_pts_subsequent_visit)
+
+require(openxlsx)
+write.xlsx(data_list, "Net_New_Analysis.xlsx")
+
+
+invisible(gc())
 ```
 
 
