@@ -315,13 +315,90 @@ billing <- billing_tbl %>%
 ```
 
 
-```{r New Patient Entry Processing, echo = FALSE, warning = FALSE, message = FALSE}
+```{r}
 
-access_raw <- access_raw_tbl %>%
+access_data <- access_raw_tbl %>%
   filter(DERIVED_STATUS_DESC == "Arrived") %>%
-  summarise(total = n()) %>%
+  dplyr::select(MRN, PAT_ENC_CSN_ID, 
+                SITE, DEPARTMENT_NAME, DEPT_SPECIALTY_NAME,
+                APPT_DTTM, APPT_MADE_DTTM, APPT_CANC_DATE, SAME_DAY_CANC_YN, DERIVED_STATUS_DESC, DERIVED_STATUS_DESC, SCHED_METHOD, APPT_ENTRY_USER_NAME_WID,
+                PROV_ID, PROV_NAME_WID) %>%
   collect()
 
+
+arrived <- access_raw_tbl %>%
+  filter(DERIVED_STATUS_DESC == "Arrived") %>%
+       arrange(MRN, APPT_DTTM, APPT_MADE_DTTM) %>%
+       group_by(MRN) %>%
+       mutate(first_new_visit = row_number()) %>%
+       mutate(second_new_visit = APPT_DTTM - lag(APPT_DTTM)) %>%
+       mutate(new_patient_3yr = ifelse(first_new_visit == 1, 1, ifelse(second_new_visit > 1095, 1, 0))) %>%
+       ungroup() %>%
+       mutate(unique_pt_ID_3yr = cumsum(new_patient_3yr)) %>%
+       group_by(MRN, unique_pt_ID_3yr ) %>%
+       mutate(visit_ID_3yr  = row_number()) %>%
+       ungroup() %>%
+       dplyr::select(PAT_ENC_CSN_ID, new_patient_3yr , unique_pt_ID_3yr , visit_ID_3yr) %>%
+  collect()
+
+access_data <- left_join(access_data, arrived, by = c("PAT_ENC_CSN_ID"))
+
+access_data <- access_data %?%
+  arrange(MRN, APPT_DTTM, APPT_MADE_DTTM) %>%
+  group_by(unique_pt_ID_3yr) %>%
+  mutate(first_entry_visit_3yr = first(APPT_ENTRY_USER_NAME_WID)) # Identify first entry point
+
+invisible(gc())
+
+# Scheduling Method  ------------------
+access_data <- access_data %>%
+  mutate(sched_method_new = case_when(APPT_ENTRY_USER_NAME_WID %like% "MYCHART" ~ "MyMS/FASTPASS",
+                                      APPT_ENTRY_USER_NAME_WID %like% "AVAAMO" ~ "Avaamo",
+                                      APPT_ENTRY_USER_NAME_WID %like% "STAYWELL" ~ "Consumer Digital",
+                                      APPT_ENTRY_USER_NAME_WID %like% "ASAP" ~ "DocASAP",
+                                      APPT_ENTRY_USER_NAME_WID %like% "KYRUUS" ~ "Google",
+                                      APPT_ENTRY_USER_NAME_WID %like% "API, OSCAR" ~ "Oscar",
+                                      APPT_ENTRY_USER_NAME_WID %like% "ZOCDOC" ~ "ZocDoc",
+                                       TRUE ~ "Entry Person"))
+
+
+
+# ZocDoc vs. Other Entry ----------------
+access_data <- access_data %>%
+  mutate(first_entry_visit__3yr_new = case_when(first_entry_visit_3yr %like% "MYCHART" ~ "MyMS/FASTPASS",
+                                       first_entry_visit_3yr %like% "AVAAMO" ~ "Avaamo",
+                                       first_entry_visit_3yr %like% "STAYWELL" ~ "Consumer Digital",
+                                       first_entry_visit_3yr %like% "ASAP" ~ "DocASAP",
+                                       first_entry_visit_3yr %like% "KYRUUS" ~ "Google",
+                                       first_entry_visit_3yr %like% "API, OSCAR" ~ "Oscar",
+                                       first_entry_visit_3yr %like% "ZOCDOC" ~ "ZocDoc",
+                                       TRUE ~ "Entry Person"))
+
+
+# Group Specialties ---------------------
+access_data <- access_data %>%
+  mutate(specialty = case_when(DEPT_SPECIALTY_NAME %in% c("Family Medicine", "Internal Medicine") ~ "Primary Care",
+                               DEPT_SPECIALTY_NAME %in% c("OB/Gyn", "Obstetrics", "Gynecology") ~ "Ob/Gyn",
+                               DEPT_SPECIALTY_NAME %like% "Peds|Pediatric" ~ "Pediatrics",
+                               TRUE ~ DEPT_SPECIALTY_NAME))
+
+
+
+data <- data %>%
+  mutate(Appt.MonthYear = format(as.Date(APPT_DTTM), "%Y-%m"),
+         Appt.Year = format(as.Date(APPT_DTTM), "%Y"),
+         Appt.Made.MonthYear = format(as.Date(APPT_MADE_DTTM), "%Y-%m"),
+         Appt.Made.Year = format(as.Date(APPT_MADE_DTTM), "%Y")) %>%
+  group_by(unique_pt_ID_3yr) %>%
+  mutate(first_visit_year = Appt.Year[new_patient_3yr == 1],
+         first_visit_monthyear = Appt.MonthYear[new_patient_3yr == 1],
+         first_visit_site = SITE[new_patient_3yr == 1],
+         first_visit_specialty = specialty[new_patient_3yr == 1]) 
+
+```
+
+
+```{r New Patient Entry Processing, echo = FALSE, warning = FALSE, message = FALSE}
 
 # Analysis based on arrived visits only ---------------------------------------
 new_patient_arrived <- access_raw_tbl %>%
@@ -376,7 +453,8 @@ data <- new_patient_data %>%
                 APPT_DTTM, APPT_MADE_DTTM, APPT_CANC_DATE, SAME_DAY_CANC_YN, DERIVED_STATUS_DESC, Appt.Status, SCHED_METHOD, APPT_ENTRY_USER_NAME_WID,
                 PROV_ID, PROV_NAME_WID,
                 new_patient, unique_pt_ID, visit_ID, first_entry_visit,
-                new_patient_scheduling, unique_pt_ID_scheduling, scheduling_ID, first_entry_scheduling) 
+                new_patient_scheduling, unique_pt_ID_scheduling, scheduling_ID, first_entry_scheduling) %>%
+  collect()
 # invisible(gc())
 
 # data <- readRDS("data.rds")
@@ -440,13 +518,6 @@ data <- data %>%
          first_visit_monthyear = Appt.MonthYear[new_patient == 1],
          first_visit_site = SITE[new_patient == 1],
          first_visit_specialty = specialty[new_patient == 1]) 
-
-
-
-
-data <- data %>%
-  mutate(Appt.Status = case_when(SAME_DAY_CANC_YN == "Y" & DERIVED_STATUS_DESC %in% c("Canceled","Rescheduled","Bumped") ~ paste0("SameDay ",DERIVED_STATUS_DESC),
-                                 TRUE ~ DERIVED_STATUS_DESC))
 
 
 ```
